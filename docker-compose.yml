@@ -1,0 +1,86 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+      - "8741:8741"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8741
+      - DATABASE_URL=postgresql+asyncpg://beaver:beaver@postgres:5432/beaver
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - SGLANG_URL=http://sglang:30000
+      - OLLAMA_URL=http://ollama:11434
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+      - DEBUG=false
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://beaver:beaver@postgres:5432/beaver
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "5491:5432"
+    environment:
+      - POSTGRES_USER=beaver
+      - POSTGRES_PASSWORD=beaver
+      - POSTGRES_DB=beaver
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./beaver/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beaver -d beaver"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    ports:
+      - "6391:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.5.4
+    ports:
+      - "11491:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  ollama_data:
