@@ -166,8 +166,16 @@ DELETE /v1/auth/api-keys/{id}
 ```bash
 # You need postgres, qdrant, ollama running locally
 
-# Install
-pip install -e .
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create venv and install dependencies
+uv venv
+source .venv/bin/activate
+uv pip install -e .
+
+# Or use uv sync for reproducible installs (if uv.lock exists)
+uv sync
 
 # Run migrations
 python -m beaver.main migrate
