@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import sys
+
+# Force unbuffered stdout so prompts appear immediately in containers
+sys.stdout.reconfigure(line_buffering=True)
+
 from beaver.installer.catalog import (
     EMBEDDING_MODELS,
     MCPS,

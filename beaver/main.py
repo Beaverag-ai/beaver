@@ -1,7 +1,10 @@
 import asyncio
 import logging
 import argparse
+import os
 import sys
+
+os.environ["PYTHONUNBUFFERED"] = "1"
 
 import uvicorn
 

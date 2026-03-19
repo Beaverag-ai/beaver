@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass
 from typing import TypeVar
+
+# Force unbuffered output for containers
+os.environ["PYTHONUNBUFFERED"] = "1"
 
 # ANSI colors
 BOLD = "\033[1m"
@@ -19,32 +23,34 @@ T = TypeVar("T")
 
 
 def header(text: str) -> None:
-    print(f"\n{BOLD}{CYAN}{text}{RESET}")
-    print(f"{CYAN}{'━' * 50}{RESET}")
+    print(f"\n{BOLD}{CYAN}{text}{RESET}", flush=True)
+    print(f"{CYAN}{'━' * 50}{RESET}", flush=True)
 
 
 def success(text: str) -> None:
-    print(f"  {GREEN}✓{RESET} {text}")
+    print(f"  {GREEN}✓{RESET} {text}", flush=True)
 
 
 def warn(text: str) -> None:
-    print(f"  {YELLOW}!{RESET} {text}")
+    print(f"  {YELLOW}!{RESET} {text}", flush=True)
 
 
 def error(text: str) -> None:
-    print(f"  {RED}✗{RESET} {text}")
+    print(f"  {RED}✗{RESET} {text}", flush=True)
 
 
 def info(text: str) -> None:
-    print(f"  {DIM}{text}{RESET}")
+    print(f"  {DIM}{text}{RESET}", flush=True)
 
 
 def banner() -> None:
     print(f"""
-{BOLD}{CYAN}  ╔══════════════════════════════════════╗
-  ║     🦫  Beaver Installer             ║
-  ║     Self-hosted RAG Platform         ║
-  ╚══════════════════════════════════════╝{RESET}
+{BOLD}{CYAN}  
+  ╔═════════════════════════════════════════╗
+  ║     🦫   Beaver Installer               ║
+  ║     Self-hosted Agentic AI Platform     ║
+  ╚═════════════════════════════════════════╝
+  {RESET}
 """)
 
 
