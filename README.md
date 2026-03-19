@@ -126,14 +126,7 @@ curl http://localhost:8741/v1/chat/completions \
 │     SGLang     │   │      Ollama       │   │   Qdrant    │
 │ (LLM from HF) │   │   (embeddings)    │   │  (vectors)  │
 │  :30091        │   │    :11491         │   │   :6391     │
-└────────────────┘   └──────────────────┘   └─────────────┘
-        │
-┌───────▼────────────────┐
-│   telegram-mcp         │
-│ (SSE bridge, :3001)    │
-│ Telegram API access    │
-└────────────────────────┘
-```
+└────────────────┘   └──────────────────┘   
 
 ## Configuration
 
