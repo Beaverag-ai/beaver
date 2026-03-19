@@ -3,7 +3,7 @@ name = "beaver"
 version = "0.1.0"
 description = "Self-hosted Agent"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11,<3.14"
 license = { text = "MIT" }
 authors = [{ name = "Beaver Team" }]
 
@@ -18,7 +18,7 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "python-multipart>=0.0.17",
     "mcp>=1.1.0",
-    "unstructured[pdf,docx,xlsx,pptx]>=0.16.0",
+    "unstructured>=0.16.0,!=0.18.31",
     "passlib[bcrypt]>=1.7.4",
     "aiofiles>=24.1.0",
     "tiktoken>=0.8.0",
