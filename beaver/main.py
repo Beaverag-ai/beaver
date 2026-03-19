@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import argparse
+import sys
 
 import uvicorn
 
@@ -69,17 +70,56 @@ async def init_admin():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Beaver - Self-hosted RAG platform")
+    parser = argparse.ArgumentParser(
+        description="Beaver - Self-hosted RAG platform",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+CLI commands:
+  beaver install               Interactive setup wizard
+  beaver chat [message]        Chat with the LLM (interactive if no message)
+  beaver upload <file>         Upload a file to the knowledge base
+  beaver documents             List uploaded documents
+  beaver search <query>        Search the knowledge base
+  beaver mcp servers           List MCP servers
+  beaver mcp tools             List available MCP tools
+  beaver mcp call <tool> <json>  Call an MCP tool
+  beaver models                List available models
+  beaver status                Check service health
+""",
+    )
     sub = parser.add_subparsers(dest="command", help="Command to run")
 
+    # Server commands
     sub.add_parser("api", help="Run the API server")
     sub.add_parser("worker", help="Run the indexing worker")
     sub.add_parser("init", help="Initialize admin user")
     sub.add_parser("migrate", help="Run database migrations")
 
+    # Installer
+    sub.add_parser("install", help="Interactive setup wizard")
+
+    # CLI client commands
+    chat_p = sub.add_parser("chat", help="Chat with the LLM")
+    chat_p.add_argument("message", nargs="*", help="Message (omit for interactive mode)")
+
+    upload_p = sub.add_parser("upload", help="Upload a file to the knowledge base")
+    upload_p.add_argument("file", nargs="*", help="File path to upload")
+
+    sub.add_parser("documents", help="List uploaded documents")
+
+    search_p = sub.add_parser("search", help="Search the knowledge base")
+    search_p.add_argument("query", nargs="*", help="Search query")
+
+    mcp_p = sub.add_parser("mcp", help="MCP server and tool management")
+    mcp_p.add_argument("subcommand", nargs="*", help="servers | tools | call <name> <json>")
+
+    sub.add_parser("models", help="List available models")
+    sub.add_parser("status", help="Check service health")
+
     args = parser.parse_args()
 
     match args.command:
+        # ── Server commands ──
         case "api":
             run_api()
         case "worker":
@@ -88,8 +128,37 @@ def main():
             asyncio.run(init_admin())
         case "migrate":
             asyncio.run(run_migrations())
+
+        # ── Installer ──
+        case "install":
+            from beaver.installer import run_installer
+            run_installer()
+
+        # ── CLI client commands ──
+        case "chat":
+            from beaver.cli.client import cmd_chat
+            cmd_chat(args.message or [])
+        case "upload":
+            from beaver.cli.client import cmd_upload
+            cmd_upload(args.file or [])
+        case "documents":
+            from beaver.cli.client import cmd_documents
+            cmd_documents([])
+        case "search":
+            from beaver.cli.client import cmd_search
+            cmd_search(args.query or [])
+        case "mcp":
+            from beaver.cli.client import cmd_mcp
+            cmd_mcp(args.subcommand or [])
+        case "models":
+            from beaver.cli.client import cmd_models
+            cmd_models([])
+        case "status":
+            from beaver.cli.client import cmd_status
+            cmd_status([])
+
         case _:
-            run_api()  # default to api
+            parser.print_help()
 
 
 if __name__ == "__main__":
