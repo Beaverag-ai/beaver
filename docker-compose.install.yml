@@ -42,15 +42,17 @@ services:
             - gpu
     ipc: host
     restart: unless-stopped
-  telegram-mcp:
+  telegram-bot:
     build:
       context: .
-      dockerfile: docker/telegram-mcp.Dockerfile
+      dockerfile: docker/telegram-bot.Dockerfile
+    depends_on:
+      api:
+        condition: service_started
     environment:
-    - TELEGRAM_API_ID=146991
-    - TELEGRAM_API_HASH=5d7440809f6a634b33f5cccf46d638b1
-    ports:
-    - 3001:3001
+    - TELEGRAM_BOT_TOKEN=8605468166:AAGG_sKgyR8AmSpPkUsWLvImPqrccFy3ghw
+    - BEAVER_API_URL=http://api:8741
+    - BEAVER_API_KEY=${BEAVER_API_KEY}
     restart: unless-stopped
   api:
     build:

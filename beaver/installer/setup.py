@@ -165,6 +165,16 @@ def init_beaver() -> str | None:
                     client_cfg["api_key"] = api_key
                     with open(config_path, "w") as f:
                         json.dump(client_cfg, f, indent=2)
+
+                # Save API key to .env for docker-compose (used by telegram-bot)
+                env_file = Path(COMPOSE_FILE).parent / ".env"
+                env_lines = []
+                if env_file.exists():
+                    env_lines = env_file.read_text().splitlines()
+                    env_lines = [l for l in env_lines if not l.startswith("BEAVER_API_KEY=")]
+                env_lines.append(f"BEAVER_API_KEY={api_key}")
+                env_file.write_text("\n".join(env_lines) + "\n")
+
                 return api_key
         error("Could not extract API key from init output")
         info(f"Init output: {output}")
@@ -176,17 +186,12 @@ def init_beaver() -> str | None:
 
 def register_telegram_mcp(api_key: str, cfg: InstallConfig) -> bool:
     """Register Telegram MCP server via the Beaver API."""
-    telegram_mcps = [m for m in cfg.mcps if m.name == "Telegram"]
+    telegram_mcps = [m for m in cfg.mcps if m.name == "Telegram MCP"]
     if not telegram_mcps:
         return True
 
-    tg = telegram_mcps[0]
-    tg_env = cfg.mcp_env.get("Telegram", {})
-
     info("Registering Telegram MCP server...")
 
-    # The MCP server runs in the telegram-mcp container, exposed via SSE on port 3001
-    # But since we built it as a stdio server with an SSE bridge, we connect via SSE
     payload = {
         "name": "telegram",
         "transport": "sse",
@@ -208,6 +213,26 @@ def register_telegram_mcp(api_key: str, cfg: InstallConfig) -> bool:
             return False
     except Exception as e:
         error(f"Failed to register Telegram MCP: {e}")
+        return False
+
+
+def start_telegram_bot(api_key: str, cfg: InstallConfig) -> bool:
+    """Restart the telegram-bot container with the API key."""
+    telegram_bots = [m for m in cfg.mcps if m.name == "Telegram Bot"]
+    if not telegram_bots:
+        return True
+
+    info("Starting Telegram Bot with API key...")
+
+    try:
+        # Set the API key as env and restart the bot
+        import os
+        os.environ["BEAVER_API_KEY"] = api_key
+        docker_compose("up", "-d", "telegram-bot")
+        success("Telegram Bot started")
+        return True
+    except Exception as e:
+        error(f"Failed to start Telegram Bot: {e}")
         return False
 
 
@@ -235,5 +260,6 @@ def run_setup(cfg: InstallConfig) -> bool:
         return False
 
     register_telegram_mcp(api_key, cfg)
+    start_telegram_bot(api_key, cfg)
 
     return True

@@ -75,14 +75,19 @@ MODELS = [
 
 MCPS = [
     MCP(
-        name="Telegram",
-        description="Send/receive Telegram messages, manage chats",
+        name="Telegram Bot",
+        description="Chat with Beaver and upload files via Telegram bot",
+        env_vars=["TELEGRAM_BOT_TOKEN"],
+        default=True,
+    ),
+    MCP(
+        name="Telegram MCP",
+        description="Access your Telegram account as tools (send messages, search chats)",
         repo="https://github.com/chigwell/telegram-mcp",
         transport="stdio",
         command="uv",
         args=["--directory", "/opt/telegram-mcp", "run", "main.py"],
         env_vars=["TELEGRAM_API_ID", "TELEGRAM_API_HASH", "TELEGRAM_SESSION_STRING"],
-        default=True,
     ),
     MCP(
         name="Slack",

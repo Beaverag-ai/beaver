@@ -23,6 +23,9 @@ RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Install unstructured extras for document parsing (docx, pdf, pptx, etc.)
+RUN uv pip install "unstructured[docx,pptx,xlsx,md,odt]"
+
 RUN mkdir -p /app/uploads
 
 CMD ["python", "-m", "beaver.main", "worker"]

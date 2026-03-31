@@ -114,9 +114,11 @@ class KnowledgeService:
         return False
 
     async def list_documents(
-        self, session: AsyncSession, user_id: str, status: str | None = None
+        self, session: AsyncSession, user_id: str | None = None, status: str | None = None
     ) -> list[Document]:
-        stmt = select(Document).where(Document.user_id == user_id)
+        stmt = select(Document)
+        if user_id:
+            stmt = stmt.where(Document.user_id == user_id)
         if status:
             stmt = stmt.where(Document.status == status)
         stmt = stmt.order_by(Document.created_at.desc())

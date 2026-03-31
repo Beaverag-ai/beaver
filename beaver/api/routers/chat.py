@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import AsyncIterator
 from typing import Any
@@ -22,6 +23,14 @@ from beaver.core.schemas import (
 )
 
 router = APIRouter(tags=["Chat"])
+
+
+THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+
+
+def strip_thinking(text: str) -> str:
+    """Remove <think>...</think> blocks from LLM output."""
+    return THINK_RE.sub("", text).strip()
 
 
 def build_context(results: list[dict[str, Any]]) -> str:
@@ -68,6 +77,17 @@ async def chat_completions(
                     else:
                         messages.insert(0, {"role": "system", "content": ctx})
 
+    # Ensure system message has /no_think to suppress reasoning output
+    sys_idx = next(
+        (i for i, m in enumerate(messages) if m.get("role") == "system"),
+        None,
+    )
+    if sys_idx is not None:
+        if "/no_think" not in messages[sys_idx]["content"]:
+            messages[sys_idx]["content"] = "/no_think\n" + messages[sys_idx]["content"]
+    else:
+        messages.insert(0, {"role": "system", "content": "/no_think"})
+
     tools = (
         [t.model_dump(exclude_none=True) for t in request.tools]
         if request.tools
@@ -96,8 +116,12 @@ async def chat_completions(
         stream=False,
     )
 
-    # if backend already returns openai format, just forward it
+    # if backend already returns openai format, strip thinking and forward
     if "choices" in resp:
+        for choice in resp.get("choices", []):
+            msg = choice.get("message", {})
+            if msg.get("content"):
+                msg["content"] = strip_thinking(msg["content"])
         return resp
 
     # otherwise wrap it
@@ -108,7 +132,7 @@ async def chat_completions(
         choices=[
             ChatCompletionChoice(
                 index=0,
-                message=ChatMessage(role="assistant", content=resp.get("content", "")),
+                message=ChatMessage(role="assistant", content=strip_thinking(resp.get("content", ""))),
                 finish_reason="stop",
             )
         ],

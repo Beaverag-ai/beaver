@@ -2,13 +2,14 @@
 
 Launches telegram-mcp as a stdio subprocess and exposes it via SSE
 so the Beaver API container can connect to it over the network.
+
+The MCP stdio protocol uses newline-delimited JSON (one JSON object per line).
 """
 
 import asyncio
 import json
 import logging
 import os
-import signal
 import sys
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -16,7 +17,7 @@ from uuid import uuid4
 import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +27,6 @@ log = logging.getLogger("telegram-mcp-bridge")
 process: asyncio.subprocess.Process | None = None
 pending_requests: dict[str, asyncio.Future] = {}
 sse_clients: list[asyncio.Queue] = []
-read_lock = asyncio.Lock()
 
 
 async def start_telegram_mcp():
@@ -42,7 +42,6 @@ async def start_telegram_mcp():
         stderr=asyncio.subprocess.PIPE,
         env=env,
     )
-    # Start reading stderr in background
     asyncio.create_task(_read_stderr())
     log.info("telegram-mcp started")
 
@@ -59,20 +58,19 @@ async def _read_stderr():
 
 
 async def send_to_mcp(request_data: dict) -> dict:
-    """Send a JSON-RPC request to the subprocess and wait for response."""
+    """Send a JSON-RPC request to the subprocess via newline-delimited JSON."""
     if not process or not process.stdin or not process.stdout:
         return {"error": "telegram-mcp not running"}
 
     req_id = request_data.get("id", str(uuid4()))
     request_data["id"] = req_id
 
-    payload = json.dumps(request_data)
-    message = f"Content-Length: {len(payload)}\r\n\r\n{payload}"
+    payload = json.dumps(request_data) + "\n"
 
     future: asyncio.Future = asyncio.get_event_loop().create_future()
     pending_requests[req_id] = future
 
-    process.stdin.write(message.encode())
+    process.stdin.write(payload.encode())
     await process.stdin.drain()
 
     try:
@@ -84,45 +82,37 @@ async def send_to_mcp(request_data: dict) -> dict:
 
 
 async def read_responses():
-    """Continuously read JSON-RPC responses from the subprocess stdout."""
+    """Continuously read newline-delimited JSON responses from subprocess stdout."""
     if not process or not process.stdout:
         return
 
-    buffer = b""
     while True:
         try:
-            chunk = await process.stdout.read(4096)
-            if not chunk:
+            line = await process.stdout.readline()
+            if not line:
+                log.warning("telegram-mcp subprocess stdout closed")
                 break
-            buffer += chunk
 
-            # Parse Content-Length header based messages
-            while b"\r\n\r\n" in buffer:
-                header_end = buffer.index(b"\r\n\r\n")
-                header = buffer[:header_end].decode()
-                content_length = 0
-                for line in header.split("\r\n"):
-                    if line.lower().startswith("content-length:"):
-                        content_length = int(line.split(":")[1].strip())
+            line = line.decode().strip()
+            if not line:
+                continue
 
-                total_needed = header_end + 4 + content_length
-                if len(buffer) < total_needed:
-                    break  # wait for more data
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                log.error(f"Invalid JSON from subprocess: {line[:200]}")
+                continue
 
-                body = buffer[header_end + 4:total_needed].decode()
-                buffer = buffer[total_needed:]
+            req_id = msg.get("id")
+            if req_id and str(req_id) in pending_requests:
+                pending_requests.pop(str(req_id)).set_result(msg)
+            elif req_id is not None and str(req_id) in pending_requests:
+                pending_requests.pop(str(req_id)).set_result(msg)
+            else:
+                # Notification — broadcast to SSE clients
+                for q in sse_clients:
+                    await q.put(msg)
 
-                try:
-                    msg = json.loads(body)
-                    req_id = msg.get("id")
-                    if req_id and req_id in pending_requests:
-                        pending_requests.pop(req_id).set_result(msg)
-                    else:
-                        # Notification — broadcast to SSE clients
-                        for q in sse_clients:
-                            await q.put(msg)
-                except json.JSONDecodeError:
-                    log.error(f"Invalid JSON from subprocess: {body[:100]}")
         except Exception as e:
             log.error(f"Error reading from subprocess: {e}")
             break
@@ -137,7 +127,6 @@ async def sse_endpoint(request: Request):
 
     async def event_generator():
         try:
-            # Send initial connection event
             yield f"event: endpoint\ndata: /message\n\n"
             while True:
                 msg = await queue.get()
@@ -147,7 +136,6 @@ async def sse_endpoint(request: Request):
         finally:
             sse_clients.remove(queue)
 
-    from starlette.responses import StreamingResponse
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",

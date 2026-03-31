@@ -94,8 +94,8 @@ async def index_document(doc_id: str, user_id: str, filepath: str) -> dict[str, 
 async def process_pending():
     kb = get_knowledge()
     async with get_session_context() as session:
-        # get all pending docs (empty user_id for admin view)
-        docs = await kb.list_documents(session, user_id="", status="pending")
+        # get all pending docs across all users
+        docs = await kb.list_documents(session, user_id=None, status="pending")
         for doc in docs:
             log.info(f"Processing: {doc.filename}")
             await index_document(str(doc.id), str(doc.user_id), doc.filepath)

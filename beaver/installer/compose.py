@@ -64,7 +64,9 @@ def generate_compose(cfg: InstallConfig) -> dict:
             f"python3 -m sglang.launch_server "
             f"--model-path {cfg.model.hf_id} "
             f"--host 0.0.0.0 "
-            f"--port 30000"
+            f"--port 30000 "
+            f"--tool-call-parser qwen25 "
+            f"--reasoning-parser qwen3"
         )
         services["sglang"] = {
             "image": "lmsysorg/sglang:latest",
@@ -90,9 +92,9 @@ def generate_compose(cfg: InstallConfig) -> dict:
         volumes["sglang_cache"] = None
 
     # ── Telegram MCP (separate container) ──
-    telegram_mcps = [m for m in cfg.mcps if m.name == "Telegram"]
+    telegram_mcps = [m for m in cfg.mcps if m.name == "Telegram MCP"]
     if telegram_mcps:
-        tg_env = cfg.mcp_env.get("Telegram", {})
+        tg_env = cfg.mcp_env.get("Telegram MCP", {})
         env_list = [f"{k}={v}" for k, v in tg_env.items()]
         services["telegram-mcp"] = {
             "build": {
@@ -101,6 +103,27 @@ def generate_compose(cfg: InstallConfig) -> dict:
             },
             "environment": env_list,
             "ports": ["3001:3001"],
+            "restart": "unless-stopped",
+        }
+
+    # ── Telegram Bot ──
+    telegram_bots = [m for m in cfg.mcps if m.name == "Telegram Bot"]
+    if telegram_bots:
+        bot_env = cfg.mcp_env.get("Telegram Bot", {})
+        bot_token = bot_env.get("TELEGRAM_BOT_TOKEN", "")
+        services["telegram-bot"] = {
+            "build": {
+                "context": ".",
+                "dockerfile": "docker/telegram-bot.Dockerfile",
+            },
+            "depends_on": {
+                "api": {"condition": "service_started"},
+            },
+            "environment": [
+                f"TELEGRAM_BOT_TOKEN={bot_token}",
+                "BEAVER_API_URL=http://api:8741",
+                "BEAVER_API_KEY=${BEAVER_API_KEY}",
+            ],
             "restart": "unless-stopped",
         }
 

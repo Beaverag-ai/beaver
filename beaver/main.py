@@ -45,6 +45,7 @@ async def run_migrations():
 
 
 async def init_admin():
+    from sqlalchemy import select
     from beaver.db.models import User
     from beaver.api.auth import create_api_key
     from beaver.db.session import get_session_context
@@ -59,11 +60,18 @@ async def init_admin():
     name = input("Admin name (optional): ").strip() or None
 
     async with get_session_context() as session:
-        user = User(email=email, name=name, role="admin")
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-        print(f"\nCreated admin user: {user.id}")
+        # Check if user already exists
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        if user:
+            print(f"\nAdmin user already exists: {user.id}")
+        else:
+            user = User(email=email, name=name, role="admin")
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+            print(f"\nCreated admin user: {user.id}")
 
         raw_key, _ = await create_api_key(
             session,
