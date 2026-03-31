@@ -14,6 +14,8 @@ from beaver.core.schemas import (
     KnowledgeQueryRequest,
     KnowledgeQueryResponse,
     KnowledgeQueryResult,
+    MCPIndexRequest,
+    MCPIndexResponse,
 )
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge"])
@@ -141,4 +143,82 @@ async def query_knowledge(
             for r in results
         ],
         query=request.query,
+    )
+
+
+@router.post("/index-from-mcp", response_model=MCPIndexResponse)
+async def index_from_mcp(
+    request: MCPIndexRequest,
+    auth: Auth,
+    knowledge: Knowledge,
+    session: DBSession,
+):
+    auth.require_scope("knowledge")
+
+    from beaver.mcp.registry import get_mcp_registry
+    from beaver.workers.indexer import chunk_text
+
+    reg = get_mcp_registry()
+
+    # resolve server_id if not provided
+    server_id = request.server_id
+    if not server_id:
+        tools = await reg.discover_tools(session, auth.user_id)
+        match = [t for t in tools if t["name"] == request.tool_name]
+        if not match:
+            raise NotFoundError("MCP tool", request.tool_name)
+        server_id = match[0]["server_id"]
+
+    # call the MCP tool
+    result = await reg.call_tool(session, server_id, request.tool_name, request.tool_arguments)
+
+    # extract text from MCP content blocks
+    text_parts = []
+    if isinstance(result, list):
+        for item in result:
+            if hasattr(item, "text"):
+                text_parts.append(item.text)
+            elif isinstance(item, str):
+                text_parts.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                text_parts.append(item["text"])
+    elif isinstance(result, str):
+        text_parts.append(result)
+
+    text = "\n\n".join(text_parts)
+    if not text.strip():
+        raise ValidationError("MCP tool returned no text content")
+
+    # create document record
+    doc_name = request.document_name or f"mcp:{request.tool_name}"
+    doc = await knowledge.add_document(
+        session,
+        auth.user_id,
+        filename=doc_name,
+        filepath=f"mcp://{request.tool_name}",
+        file_type="mcp",
+    )
+    doc.source = "mcp"
+    await session.commit()
+    await session.refresh(doc)
+
+    doc_id = str(doc.id)
+
+    # chunk, embed, and index
+    chunks = chunk_text(text)
+    meta = {
+        "source": "mcp",
+        "mcp_tool": request.tool_name,
+        "mcp_server_id": server_id,
+        "filename": doc_name,
+    }
+    chunk_count = await knowledge.index_chunks(doc_id, auth.user_id, chunks, meta)
+    await knowledge.update_status(session, doc_id, "indexed", chunk_count=chunk_count)
+
+    return MCPIndexResponse(
+        id=doc_id,
+        document_name=doc_name,
+        status="indexed",
+        chunk_count=chunk_count,
+        created_at=doc.created_at,
     )

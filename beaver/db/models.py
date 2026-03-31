@@ -50,6 +50,7 @@ class Document(Base):
     filename: Mapped[str] = mapped_column(String(255))
     filepath: Mapped[str] = mapped_column(String(1024))
     file_type: Mapped[str] = mapped_column(String(50))
+    source: Mapped[str] = mapped_column(String(50), default="upload")
     status: Mapped[str] = mapped_column(String(50), default="pending")
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)

@@ -224,6 +224,21 @@ class FunctionExecuteResponse(BaseModel):
     error: str | None = None
 
 
+class MCPIndexRequest(BaseModel):
+    tool_name: str
+    tool_arguments: dict[str, Any] = {}
+    document_name: str | None = None
+    server_id: str | None = None
+
+
+class MCPIndexResponse(BaseModel):
+    id: str
+    document_name: str
+    status: str
+    chunk_count: int
+    created_at: datetime
+
+
 class MCPServerCreate(BaseModel):
     name: str
     transport: Literal["stdio", "sse", "websocket"]
