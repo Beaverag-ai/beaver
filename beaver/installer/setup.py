@@ -17,6 +17,22 @@ from beaver.installer.prompts import error, info, success, warn
 COMPOSE_FILE = "docker-compose.install.yml"
 
 
+def check_docker_permissions() -> bool:
+    """Check if the current user can access Docker without sudo."""
+    result = subprocess.run(
+        ["docker", "info"],
+        check=False, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        error("Cannot connect to Docker. Permission denied.")
+        info("Fix it by adding your user to the docker group:")
+        info("  sudo usermod -aG docker $USER")
+        info("  newgrp docker")
+        info("Then re-run: beaver install")
+        return False
+    return True
+
+
 def run_cmd(cmd: list[str], check: bool = True, capture: bool = False, **kw) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, check=check, capture_output=capture, text=True, **kw)
 
@@ -202,6 +218,9 @@ def register_telegram_mcp(api_key: str, cfg: InstallConfig) -> bool:
 
 def run_setup(cfg: InstallConfig) -> bool:
     """Full post-compose setup sequence."""
+    if not check_docker_permissions():
+        return False
+
     if not start_services(cfg):
         return False
 

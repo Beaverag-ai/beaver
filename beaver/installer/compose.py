@@ -60,10 +60,14 @@ def generate_compose(cfg: InstallConfig) -> dict:
             "restart": "unless-stopped",
         }
 
-        # Qdrant-specific volume mount
+        # Qdrant: build from source without jemalloc for 64KB page size compatibility
         if vs.name == "Qdrant":
-            vs_service["volumes"] = ["qdrant_data:/qdrant/storage"]
-            vs_service["ports"] = ["6391:6333"]
+            vs_service = {
+                "build": {"context": ".", "dockerfile": "docker/qdrant.Dockerfile"},
+                "ports": ["6391:6333"],
+                "volumes": ["qdrant_data:/qdrant/storage"],
+                "restart": "unless-stopped",
+            }
 
         services[svc_name] = vs_service
         volumes[f"{svc_name}_data"] = None

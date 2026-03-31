@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Component catalog for Beaver installer."""
 
 from dataclasses import dataclass, field
@@ -103,7 +105,7 @@ MCPS = [
 VECTOR_STORES = [
     VectorStore(
         name="Qdrant",
-        image="qdrant/qdrant:v1.12.1",
+        image="qdrant/qdrant:v1.14.0",
         port=6333,
         description="High-performance vector search engine",
         default=True,

@@ -65,7 +65,9 @@ services:
     restart: unless-stopped
 
   qdrant:
-    image: qdrant/qdrant:v1.12.1
+    build:
+      context: .
+      dockerfile: docker/qdrant.Dockerfile
     ports:
       - "6391:6333"
     volumes:

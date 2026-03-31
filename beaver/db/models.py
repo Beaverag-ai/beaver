@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import uuid
 from uuid import uuid4
 from datetime import datetime, UTC
 
@@ -13,7 +16,7 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid4] = mapped_column(UUID, primary_key=True, default=uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str | None] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(50), default="user")
@@ -26,8 +29,8 @@ class User(Base):
 class APIKey(Base):
     __tablename__ = "api_keys"
 
-    id: Mapped[uuid4] = mapped_column(UUID, primary_key=True, default=uuid4)
-    user_id: Mapped[uuid4] = mapped_column(UUID, ForeignKey("users.id"), index=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("users.id"), index=True)
     key_hash: Mapped[str] = mapped_column(String(64))
     key_prefix: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(255))
@@ -45,8 +48,8 @@ class APIKey(Base):
 class Document(Base):
     __tablename__ = "documents"
 
-    id: Mapped[uuid4] = mapped_column(UUID, primary_key=True, default=uuid4)
-    user_id: Mapped[uuid4] = mapped_column(UUID, ForeignKey("users.id"), index=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("users.id"), index=True)
     filename: Mapped[str] = mapped_column(String(255))
     filepath: Mapped[str] = mapped_column(String(1024))
     file_type: Mapped[str] = mapped_column(String(50))
@@ -63,8 +66,8 @@ class Document(Base):
 class Function(Base):
     __tablename__ = "functions"
 
-    id: Mapped[uuid4] = mapped_column(UUID, primary_key=True, default=uuid4)
-    user_id: Mapped[uuid4 | None] = mapped_column(UUID, ForeignKey("users.id"), index=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid4)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     description: Mapped[str] = mapped_column(Text)
     parameters_schema: Mapped[dict] = mapped_column(JSONB)
@@ -79,8 +82,8 @@ class Function(Base):
 class MCPServer(Base):
     __tablename__ = "mcp_servers"
 
-    id: Mapped[uuid4] = mapped_column(UUID, primary_key=True, default=uuid4)
-    user_id: Mapped[uuid4] = mapped_column(UUID, ForeignKey("users.id"), index=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(255))
     transport: Mapped[str] = mapped_column(String(50))  # stdio, sse, websocket
     command: Mapped[str | None] = mapped_column(String(1024))
@@ -96,8 +99,8 @@ class MCPServer(Base):
 class RequestLog(Base):
     __tablename__ = "request_logs"
 
-    id: Mapped[uuid4] = mapped_column(UUID, primary_key=True, default=uuid4)
-    user_id: Mapped[uuid4] = mapped_column(UUID, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID, index=True)
     endpoint: Mapped[str] = mapped_column(String(255))
     method: Mapped[str] = mapped_column(String(10), default="POST")
     status_code: Mapped[int] = mapped_column(Integer)

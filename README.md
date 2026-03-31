@@ -4,6 +4,18 @@ Self-hosted RAG platform with an OpenAI-compatible API. Drop in your documents, 
 
 ## Quick Start
 
+### Install the CLI
+
+```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create venv with Python 3.12 and install beaver
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e .
+```
+
 ### Option A: Interactive Installer (Recommended)
 
 ```bash
@@ -349,7 +361,7 @@ The full installation includes the following containers:
 | **api** | Custom (Dockerfile) | 8741 | Beaver API server |
 | **worker** | Custom (Dockerfile) | — | Background document indexing |
 | **postgres** | postgres:17-alpine | 5491 | Metadata database |
-| **qdrant** | qdrant/qdrant:v1.12.1 | 6391 | Vector storage for embeddings |
+| **qdrant** | qdrant/qdrant:v1.14.0 | 6391 | Vector storage for embeddings |
 | **ollama** | ollama/ollama:latest | 11491 | Embedding model server |
 | **sglang** | lmsysorg/sglang:latest | 30091 | LLM inference (GPU required) |
 | **telegram-mcp** | Custom (Dockerfile) | 3001 | Telegram MCP with SSE bridge |
@@ -368,6 +380,16 @@ docker compose -f docker-compose.install.yml restart api
 
 # Pull the embedding model manually
 docker compose -f docker-compose.install.yml exec ollama ollama pull nomic-embed-text
+```
+
+### Clean Reinstall
+
+To wipe everything (containers, volumes, images, build cache) and start fresh:
+
+```bash
+docker compose -f docker-compose.install.yml down -v --rmi all
+docker builder prune -f
+beaver install
 ```
 
 ## License

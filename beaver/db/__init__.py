@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from beaver.db.models import APIKey, Document, Function, MCPServer, RequestLog, User
 from beaver.db.session import get_session, get_session_context, init_db
 

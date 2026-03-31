@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from beaver.core.exceptions import (
     AuthenticationError,
     AuthorizationError,

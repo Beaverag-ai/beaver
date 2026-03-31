@@ -1,0 +1,116 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+    - 5491:5432
+    environment:
+    - POSTGRES_USER=beaver
+    - POSTGRES_PASSWORD=beaver
+    - POSTGRES_DB=beaver
+    volumes:
+    - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U beaver -d beaver
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  qdrant:
+    build:
+      context: .
+      dockerfile: docker/qdrant.Dockerfile
+    ports:
+    - 6391:6333
+    volumes:
+    - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+    - 11491:11434
+    volumes:
+    - ollama_data:/root/.ollama
+    restart: unless-stopped
+  sglang:
+    image: lmsysorg/sglang:latest
+    ports:
+    - 30091:30000
+    volumes:
+    - sglang_cache:/root/.cache/huggingface
+    command: python3 -m sglang.launch_server --model-path Qwen/Qwen3.5-35B-A3B-FP8
+      --host 0.0.0.0 --port 30000
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities:
+            - gpu
+    ipc: host
+    restart: unless-stopped
+  telegram-mcp:
+    build:
+      context: .
+      dockerfile: docker/telegram-mcp.Dockerfile
+    environment:
+    - TELEGRAM_API_ID=146991
+    - TELEGRAM_API_HASH=5d7440809f6a634b33f5cccf46d638b1
+    ports:
+    - 3001:3001
+    restart: unless-stopped
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+    - 8741:8741
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+    - API_HOST=0.0.0.0
+    - API_PORT=8741
+    - DATABASE_URL=postgresql+asyncpg://beaver:beaver@postgres:5432/beaver
+    - SGLANG_URL=http://sglang:30000
+    - OLLAMA_URL=http://ollama:11434
+    - DEBUG=false
+    - QDRANT_HOST=qdrant
+    - QDRANT_PORT=6333
+    - EMBEDDING_MODEL=hf.co/google/embeddinggemma-300m
+    - EMBEDDING_DIM=768
+    volumes:
+    - ./uploads:/app/uploads
+    restart: unless-stopped
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+    - DATABASE_URL=postgresql+asyncpg://beaver:beaver@postgres:5432/beaver
+    - OLLAMA_URL=http://ollama:11434
+    - QDRANT_HOST=qdrant
+    - QDRANT_PORT=6333
+    - EMBEDDING_MODEL=hf.co/google/embeddinggemma-300m
+    - EMBEDDING_DIM=768
+    volumes:
+    - ./uploads:/app/uploads
+    restart: unless-stopped
+volumes:
+  postgres_data: null
+  qdrant_data: null
+  ollama_data: null
+  sglang_cache: null

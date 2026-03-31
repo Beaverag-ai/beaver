@@ -10,6 +10,7 @@ import logging
 import os
 import signal
 import sys
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 import uvicorn
@@ -175,26 +176,25 @@ async def health_endpoint(request: Request):
 
 # ── App ──
 
+
+@asynccontextmanager
+async def lifespan(app):
+    await start_telegram_mcp()
+    asyncio.create_task(read_responses())
+    yield
+    if process:
+        process.terminate()
+        await process.wait()
+
+
 app = Starlette(
     routes=[
         Route("/sse", sse_endpoint),
         Route("/message", message_endpoint, methods=["POST"]),
         Route("/health", health_endpoint),
     ],
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-async def startup():
-    await start_telegram_mcp()
-    asyncio.create_task(read_responses())
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    if process:
-        process.terminate()
-        await process.wait()
 
 
 if __name__ == "__main__":

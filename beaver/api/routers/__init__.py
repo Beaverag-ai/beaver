@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from beaver.api.routers import (
     auth_routes,
     chat,
