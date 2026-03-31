@@ -104,18 +104,17 @@ MCPS = [
 
 VECTOR_STORES = [
     VectorStore(
-        name="Qdrant",
-        image="qdrant/qdrant:v1.14.0",
-        port=6333,
-        description="High-performance vector search engine",
+        name="pgvector",
+        image="",
+        port=0,
+        description="PostgreSQL vector extension (built into Postgres, no extra container)",
         default=True,
     ),
     VectorStore(
-        name="Pinecone",
-        image="",
-        port=0,
-        description="Cloud-hosted vector database",
-        cloud=True,
+        name="Qdrant",
+        image="qdrant/qdrant:latest",
+        port=6333,
+        description="High-performance vector search engine",
     ),
     VectorStore(
         name="Chroma",
@@ -129,21 +128,22 @@ VECTOR_STORES = [
         port=8080,
         description="AI-native vector database",
     ),
+    VectorStore(
+        name="Pinecone",
+        image="",
+        port=0,
+        description="Cloud-hosted vector database",
+        cloud=True,
+    ),
 ]
 
 EMBEDDING_MODELS = [
-    EmbeddingModel(
-        name="google/embeddinggemma-300m",
-        ollama_model="hf.co/google/embeddinggemma-300m",
-        dim=768,
-        description="Google EmbeddingGemma 300M",
-        default=True,
-    ),
     EmbeddingModel(
         name="nomic-embed-text",
         ollama_model="nomic-embed-text",
         dim=768,
         description="Nomic Embed Text — general-purpose embeddings",
+        default=True,
     ),
     EmbeddingModel(
         name="mxbai-embed-large",

@@ -18,7 +18,7 @@ class KnowledgeService:
     def __init__(self, embeddings=None, vectorstore=None):
         self.embeddings = embeddings or get_embeddings()
         self.vectorstore = vectorstore or get_vectorstore()
-        self.collection = cfg.qdrant_collection
+        self.collection = cfg.vector_collection
 
     async def init(self):
         await self.vectorstore.init()

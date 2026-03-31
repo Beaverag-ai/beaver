@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     ports:
     - 5491:5432
     environment:
@@ -16,15 +16,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
-  qdrant:
-    build:
-      context: .
-      dockerfile: docker/qdrant.Dockerfile
-    ports:
-    - 6391:6333
-    volumes:
-    - qdrant_data:/qdrant/storage
     restart: unless-stopped
   ollama:
     image: ollama/ollama:latest
@@ -70,8 +61,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      qdrant:
-        condition: service_started
       ollama:
         condition: service_started
     environment:
@@ -81,9 +70,7 @@ services:
     - SGLANG_URL=http://sglang:30000
     - OLLAMA_URL=http://ollama:11434
     - DEBUG=false
-    - QDRANT_HOST=qdrant
-    - QDRANT_PORT=6333
-    - EMBEDDING_MODEL=hf.co/google/embeddinggemma-300m
+    - EMBEDDING_MODEL=nomic-embed-text
     - EMBEDDING_DIM=768
     volumes:
     - ./uploads:/app/uploads
@@ -95,22 +82,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      qdrant:
-        condition: service_started
       ollama:
         condition: service_started
     environment:
     - DATABASE_URL=postgresql+asyncpg://beaver:beaver@postgres:5432/beaver
     - OLLAMA_URL=http://ollama:11434
-    - QDRANT_HOST=qdrant
-    - QDRANT_PORT=6333
-    - EMBEDDING_MODEL=hf.co/google/embeddinggemma-300m
+    - EMBEDDING_MODEL=nomic-embed-text
     - EMBEDDING_DIM=768
     volumes:
     - ./uploads:/app/uploads
     restart: unless-stopped
 volumes:
   postgres_data: null
-  qdrant_data: null
   ollama_data: null
   sglang_cache: null

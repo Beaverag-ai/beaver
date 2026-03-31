@@ -94,11 +94,6 @@ def wait_for_all(cfg: InstallConfig) -> bool:
     if not wait_for_service("Ollama", "http://localhost:11491/api/tags", timeout=60):
         ok = False
 
-    # Vector store
-    if cfg.vector_store and cfg.vector_store.name == "Qdrant":
-        if not wait_for_service("Qdrant", "http://localhost:6391/collections", timeout=60):
-            ok = False
-
     # Beaver API
     if not wait_for_service("Beaver API", "http://localhost:8741/health", timeout=120):
         ok = False

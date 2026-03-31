@@ -31,6 +31,9 @@ class MCPClient:
         self._session: ClientSession | None = None
         self._tools: list[dict[str, Any]] = []
         self._connected = False
+        # Keep references to context managers so they stay alive
+        self._transport_cm = None
+        self._session_cm = None
 
     @property
     def is_connected(self) -> bool:
@@ -64,18 +67,22 @@ class MCPClient:
             args=self.args,
             env=self.env or None,
         )
-        read, write = await stdio_client(params).__aenter__()
+        self._transport_cm = stdio_client(params)
+        read, write = await self._transport_cm.__aenter__()
         self._session = ClientSession(read, write)
-        await self._session.__aenter__()
+        self._session_cm = self._session
+        await self._session_cm.__aenter__()
         await self._session.initialize()
 
     async def _connect_sse(self) -> None:
         if not self.url:
             raise ValueError("URL required for SSE transport")
 
-        read, write = await sse_client(self.url).__aenter__()
+        self._transport_cm = sse_client(self.url)
+        read, write = await self._transport_cm.__aenter__()
         self._session = ClientSession(read, write)
-        await self._session.__aenter__()
+        self._session_cm = self._session
+        await self._session_cm.__aenter__()
         await self._session.initialize()
 
     async def _discover_tools(self) -> None:
@@ -107,13 +114,21 @@ class MCPClient:
         return result.content
 
     async def disconnect(self) -> None:
-        if self._session:
+        if self._session_cm:
             try:
-                await self._session.__aexit__(None, None, None)
+                await self._session_cm.__aexit__(None, None, None)
             except Exception:
                 pass
-            self._session = None
+            self._session_cm = None
 
+        if self._transport_cm:
+            try:
+                await self._transport_cm.__aexit__(None, None, None)
+            except Exception:
+                pass
+            self._transport_cm = None
+
+        self._session = None
         self._connected = False
         self._tools = []
         log.info(f"Disconnected from: {self.name}")

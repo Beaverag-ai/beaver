@@ -27,9 +27,9 @@ def generate_compose(cfg: InstallConfig) -> dict:
     services: dict = {}
     volumes: dict = {}
 
-    # ── PostgreSQL ──
+    # ── PostgreSQL + pgvector ──
     services["postgres"] = {
-        "image": "postgres:17-alpine",
+        "image": "pgvector/pgvector:pg17",
         "ports": ["5491:5432"],
         "environment": [
             "POSTGRES_USER=beaver",
@@ -48,29 +48,6 @@ def generate_compose(cfg: InstallConfig) -> dict:
         "restart": "unless-stopped",
     }
     volumes["postgres_data"] = None
-
-    # ── Vector Store ──
-    vs = cfg.vector_store
-    if vs and not vs.cloud:
-        svc_name = vs.name.lower()
-        vs_service: dict = {
-            "image": vs.image,
-            "ports": [f"{vs.port}:{vs.port}"],
-            "volumes": [f"{svc_name}_data:/data"],
-            "restart": "unless-stopped",
-        }
-
-        # Qdrant: build from source without jemalloc for 64KB page size compatibility
-        if vs.name == "Qdrant":
-            vs_service = {
-                "build": {"context": ".", "dockerfile": "docker/qdrant.Dockerfile"},
-                "ports": ["6391:6333"],
-                "volumes": ["qdrant_data:/qdrant/storage"],
-                "restart": "unless-stopped",
-            }
-
-        services[svc_name] = vs_service
-        volumes[f"{svc_name}_data"] = None
 
     # ── Ollama (Embeddings) ──
     services["ollama"] = {
@@ -137,23 +114,14 @@ def generate_compose(cfg: InstallConfig) -> dict:
         "DEBUG=false",
     ]
 
-    if vs and vs.name == "Qdrant":
-        api_env.extend(["QDRANT_HOST=qdrant", "QDRANT_PORT=6333"])
-    elif vs and vs.name == "Chroma":
-        api_env.extend([f"CHROMA_HOST=chroma", f"CHROMA_PORT=8000"])
-    elif vs and vs.name == "Weaviate":
-        api_env.extend([f"WEAVIATE_HOST=weaviate", f"WEAVIATE_PORT=8080"])
-
     if cfg.embedding:
         api_env.append(f"EMBEDDING_MODEL={cfg.embedding.ollama_model}")
         api_env.append(f"EMBEDDING_DIM={cfg.embedding.dim}")
 
     api_depends: dict = {
         "postgres": {"condition": "service_healthy"},
+        "ollama": {"condition": "service_started"},
     }
-    if vs and not vs.cloud:
-        api_depends[vs.name.lower()] = {"condition": "service_started"}
-    api_depends["ollama"] = {"condition": "service_started"}
 
     services["api"] = {
         "build": {
@@ -172,18 +140,14 @@ def generate_compose(cfg: InstallConfig) -> dict:
         "DATABASE_URL=postgresql+asyncpg://beaver:beaver@postgres:5432/beaver",
         "OLLAMA_URL=http://ollama:11434",
     ]
-    if vs and vs.name == "Qdrant":
-        worker_env.extend(["QDRANT_HOST=qdrant", "QDRANT_PORT=6333"])
     if cfg.embedding:
         worker_env.append(f"EMBEDDING_MODEL={cfg.embedding.ollama_model}")
         worker_env.append(f"EMBEDDING_DIM={cfg.embedding.dim}")
 
     worker_depends: dict = {
         "postgres": {"condition": "service_healthy"},
+        "ollama": {"condition": "service_started"},
     }
-    if vs and not vs.cloud:
-        worker_depends[vs.name.lower()] = {"condition": "service_started"}
-    worker_depends["ollama"] = {"condition": "service_started"}
 
     services["worker"] = {
         "build": {
@@ -214,14 +178,11 @@ def generate_env(cfg: InstallConfig) -> str:
         "",
     ]
 
-    if cfg.vector_store and cfg.vector_store.name == "Qdrant":
-        lines.extend([
-            "# Vector Store (Qdrant)",
-            "QDRANT_HOST=localhost",
-            "QDRANT_PORT=6391",
-            "QDRANT_COLLECTION=beaver_knowledge",
-            "",
-        ])
+    lines.extend([
+        "# Vector Store (pgvector — uses same database)",
+        "VECTOR_COLLECTION=beaver_knowledge",
+        "",
+    ])
 
     lines.extend([
         "# LLM Backend (SGLang)",

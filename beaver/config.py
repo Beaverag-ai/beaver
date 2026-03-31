@@ -18,10 +18,8 @@ class Settings(BaseSettings):
     # postgres
     database_url: str = "postgresql+asyncpg://beaver:beaver@localhost:5491/beaver"
 
-    # qdrant
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6391
-    qdrant_collection: str = "beaver_knowledge"
+    # vector store (pgvector — uses the same database_url as postgres)
+    vector_collection: str = "beaver_knowledge"
 
     # llm backend
     sglang_url: str = "http://localhost:30091"

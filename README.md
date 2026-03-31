@@ -26,7 +26,7 @@ The installer walks you through choosing your stack:
 
 1. **LLM Model** — served via SGLang, loaded from HuggingFace
 2. **MCP Integrations** — Telegram, Slack, Gmail, GitHub, Filesystem
-3. **Vector Storage** — Qdrant, Pinecone, Chroma, Weaviate
+3. **Vector Storage** — pgvector (built into PostgreSQL)
 4. **Embedding Model** — served via Ollama
 
 It generates a `docker-compose.install.yml`, starts all services, pulls models, creates an admin user, and registers your MCP servers — all automatically.
@@ -134,11 +134,11 @@ curl http://localhost:8741/v1/chat/completions \
 │  /v1/mcp/servers/*      │  /metrics/*      │                │
 └───────┬─────────────────┴────────┬─────────┴───────┬────────┘
         │                          │                 │
-┌───────▼────────┐   ┌────────────▼──────┐   ┌──────▼──────┐
-│     SGLang     │   │      Ollama       │   │   Qdrant    │
-│ (LLM from HF) │   │   (embeddings)    │   │  (vectors)  │
-│  :30091        │   │    :11491         │   │   :6391     │
-└────────────────┘   └──────────────────┘   
+┌───────▼────────┐   ┌────────────▼──────┐
+│     SGLang     │   │      Ollama       │
+│ (LLM from HF) │   │   (embeddings)    │
+│  :30091        │   │    :11491         │
+└────────────────┘   └──────────────────┘
 
 ## Configuration
 
@@ -149,7 +149,7 @@ Key ones:
 - `SGLANG_URL` - Your LLM server (OpenAI-compatible)
 - `OLLAMA_URL` - Ollama for embeddings
 - `PERPLEXITY_API_KEY` - For web search function
-- `QDRANT_HOST` / `QDRANT_PORT` - Vector DB
+- `VECTOR_COLLECTION` - pgvector collection name (default: beaver_knowledge)
 
 ## API Endpoints
 
@@ -268,7 +268,7 @@ DELETE /v1/auth/api-keys/{id}
 ### Local Setup (without Docker)
 
 ```bash
-# You need postgres, qdrant, ollama running locally
+# You need postgres (with pgvector) and ollama running locally
 
 # Install uv (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -360,8 +360,7 @@ The full installation includes the following containers:
 |---------|-------|------|---------|
 | **api** | Custom (Dockerfile) | 8741 | Beaver API server |
 | **worker** | Custom (Dockerfile) | — | Background document indexing |
-| **postgres** | postgres:17-alpine | 5491 | Metadata database |
-| **qdrant** | qdrant/qdrant:v1.14.0 | 6391 | Vector storage for embeddings |
+| **postgres** | pgvector/pgvector:pg17 | 5491 | Metadata + vector storage (pgvector) |
 | **ollama** | ollama/ollama:latest | 11491 | Embedding model server |
 | **sglang** | lmsysorg/sglang:latest | 30091 | LLM inference (GPU required) |
 | **telegram-mcp** | Custom (Dockerfile) | 3001 | Telegram MCP with SSE bridge |
