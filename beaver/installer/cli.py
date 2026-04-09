@@ -61,6 +61,7 @@ def run_installer() -> None:
         name_fn=lambda m: m.name,
         desc_fn=lambda m: m.description,
         default_fn=lambda m: m.default,
+        allow_skip=True,
     )
 
     # Collect MCP credentials

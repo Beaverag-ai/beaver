@@ -103,6 +103,7 @@ def select_many(
     name_fn,
     desc_fn,
     default_fn,
+    allow_skip: bool = False,
 ) -> list[T]:
     """Multi-select prompt. Returns list of selected items."""
     print(f"\n  {BOLD}{title}{RESET}")
@@ -117,12 +118,17 @@ def select_many(
         if default_fn(item):
             defaults.append(i)
 
+    if allow_skip:
+        print(f"       {DIM}Type 'skip' or '0' to select none{RESET}")
+
     default_str = ",".join(str(d + 1) for d in defaults)
     print()
     while True:
         raw = input(f"  Select (comma-separated) [{default_str}]: ").strip()
         if not raw:
             return [items[i] for i in defaults]
+        if allow_skip and raw.lower() in ("skip", "none", "0"):
+            return []
         try:
             indices = [int(x.strip()) - 1 for x in raw.split(",")]
             if all(0 <= idx < len(items) for idx in indices):
