@@ -58,8 +58,9 @@ def generate_compose(cfg: InstallConfig) -> dict:
     }
     volumes["ollama_data"] = None
 
-    # ── SGLang (LLM) ──
-    if cfg.model:
+    # ── SGLang (LLM) ── (skipped when model is served by Ollama)
+    use_ollama_llm = bool(cfg.model and cfg.model.provider == "ollama")
+    if cfg.model and not use_ollama_llm:
         sglang_cmd = (
             f"python3 -m sglang.launch_server "
             f"--model-path {cfg.model.hf_id} "
@@ -128,14 +129,17 @@ def generate_compose(cfg: InstallConfig) -> dict:
         }
 
     # ── Beaver API ──
+    llm_url = "http://ollama:11434" if use_ollama_llm else "http://sglang:30000"
     api_env = [
         "API_HOST=0.0.0.0",
         "API_PORT=8741",
         "DATABASE_URL=postgresql+asyncpg://beaver:beaver@postgres:5432/beaver",
-        f"SGLANG_URL=http://sglang:30000",
+        f"SGLANG_URL={llm_url}",
         "OLLAMA_URL=http://ollama:11434",
         "DEBUG=false",
     ]
+    if cfg.model:
+        api_env.append(f"DEFAULT_MODEL={cfg.model.hf_id}")
 
     if cfg.embedding:
         api_env.append(f"EMBEDDING_MODEL={cfg.embedding.ollama_model}")
@@ -207,9 +211,12 @@ def generate_env(cfg: InstallConfig) -> str:
         "",
     ])
 
+    use_ollama_llm = bool(cfg.model and cfg.model.provider == "ollama")
+    llm_url = "http://localhost:11491" if use_ollama_llm else "http://localhost:30091"
+    llm_label = "Ollama" if use_ollama_llm else "SGLang"
     lines.extend([
-        "# LLM Backend (SGLang)",
-        "SGLANG_URL=http://localhost:30091",
+        f"# LLM Backend ({llm_label})",
+        f"SGLANG_URL={llm_url}",
         f"DEFAULT_MODEL={cfg.model.hf_id if cfg.model else 'beaver-default'}",
         "",
         "# Embeddings (Ollama)",

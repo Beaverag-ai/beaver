@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 import sys
 
 # Force unbuffered stdout so prompts appear immediately in containers
@@ -11,7 +12,9 @@ from beaver.installer.catalog import (
     EMBEDDING_MODELS,
     MCPS,
     MODELS,
+    OLLAMA_LLM_MODELS,
     VECTOR_STORES,
+    Model,
 )
 from beaver.installer.compose import InstallConfig, write_install_files
 from beaver.installer.prompts import (
@@ -35,6 +38,87 @@ from beaver.installer.prompts import (
 from beaver.installer.setup import run_setup
 
 
+def _is_macos() -> bool:
+    return platform.system() == "Darwin"
+
+
+def _select_model() -> Model:
+    """Pick from the catalog, or enter a custom model alias.
+
+    On macOS, uses Ollama (SGLang needs NVIDIA GPUs). Elsewhere, uses SGLang
+    with HuggingFace repos.
+    """
+    if _is_macos():
+        items = OLLAMA_LLM_MODELS
+        subtitle = "Served via Ollama (macOS — SGLang requires NVIDIA GPU)"
+        custom_label = "Enter an Ollama model tag (e.g. qwen3:14b)"
+    else:
+        items = MODELS
+        subtitle = "Served via SGLang, loaded from HuggingFace"
+        custom_label = "Enter a HuggingFace model ID (e.g. dmayboroda/model)"
+
+    print(f"\n  {BOLD}LLM Model{RESET}")
+    info(subtitle)
+    print()
+
+    default_idx = 0
+    for i, m in enumerate(items):
+        marker = f"{GREEN}*{RESET}" if m.default else " "
+        print(f"  [{marker}] {i + 1}. {BOLD}{m.name}{RESET}")
+        print(f"       {DIM}{m.description}{RESET}")
+        if m.default:
+            default_idx = i
+
+    custom_idx = len(items) + 1
+    print(f"  [ ] {custom_idx}. {BOLD}Custom{RESET}")
+    print(f"       {DIM}{custom_label}{RESET}")
+
+    print()
+    while True:
+        raw = input(f"  Select (1-{custom_idx}) [{default_idx + 1}]: ").strip()
+        if not raw:
+            return items[default_idx]
+        try:
+            idx = int(raw) - 1
+        except ValueError:
+            error(f"Please enter a number between 1 and {custom_idx}")
+            continue
+        if 0 <= idx < len(items):
+            return items[idx]
+        if idx == len(items):
+            return _prompt_custom_ollama() if _is_macos() else _prompt_custom_hf()
+        error(f"Please enter a number between 1 and {custom_idx}")
+
+
+def _prompt_custom_hf() -> Model:
+    """Prompt for an HF model alias like 'org/name'."""
+    while True:
+        alias = input("  HuggingFace model ID (org/name): ").strip()
+        parts = alias.split("/")
+        if len(parts) == 2 and all(p.strip() for p in parts):
+            return Model(
+                name=alias,
+                hf_id=alias,
+                description="Custom HuggingFace model",
+                provider="sglang",
+            )
+        error("Enter a valid HF model ID like 'org/model-name'")
+
+
+def _prompt_custom_ollama() -> Model:
+    """Prompt for an Ollama registry tag like 'name' or 'name:tag'."""
+    while True:
+        alias = input("  Ollama model tag (e.g. qwen3:32b): ").strip()
+        if alias and " " not in alias:
+            return Model(
+                name=alias,
+                hf_id=alias,
+                description="Custom Ollama model",
+                provider="ollama",
+            )
+        error("Enter a valid Ollama tag like 'qwen3:32b' or 'llama3.1:8b'")
+
+
 def run_installer() -> None:
     """Main installer entry point."""
     banner()
@@ -43,14 +127,7 @@ def run_installer() -> None:
 
     # ── Step 1: Choose LLM Model ──
     header("Step 1/4: Choose LLM Model")
-    cfg.model = select_one(
-        "LLM Model",
-        "Served via SGLang, loaded from HuggingFace",
-        MODELS,
-        name_fn=lambda m: m.name,
-        desc_fn=lambda m: m.description,
-        default_fn=lambda m: m.default,
-    )
+    cfg.model = _select_model()
 
     # ── Step 2: Choose MCP Integrations ──
     header("Step 2/4: Choose MCP Integrations")

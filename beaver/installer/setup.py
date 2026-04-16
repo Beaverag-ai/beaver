@@ -101,24 +101,33 @@ def wait_for_all(cfg: InstallConfig) -> bool:
     return ok
 
 
-def pull_embedding_model(cfg: InstallConfig) -> bool:
-    """Pull the embedding model into Ollama."""
-    if not cfg.embedding:
-        return True
-
-    model = cfg.embedding.ollama_model
-    info(f"Pulling embedding model: {model}")
+def _ollama_pull(tag: str, label: str) -> bool:
+    info(f"Pulling {label}: {tag}")
     try:
         run_cmd([
             "docker", "compose", "-f", COMPOSE_FILE,
             "exec", "-T", "ollama",
-            "ollama", "pull", model,
+            "ollama", "pull", tag,
         ])
-        success(f"Embedding model pulled: {model}")
+        success(f"{label} pulled: {tag}")
         return True
     except subprocess.CalledProcessError as e:
-        error(f"Failed to pull embedding model: {e}")
+        error(f"Failed to pull {label}: {e}")
         return False
+
+
+def pull_embedding_model(cfg: InstallConfig) -> bool:
+    """Pull the embedding model into Ollama."""
+    if not cfg.embedding:
+        return True
+    return _ollama_pull(cfg.embedding.ollama_model, "embedding model")
+
+
+def pull_llm_model(cfg: InstallConfig) -> bool:
+    """Pull the LLM model into Ollama (only when provider is ollama)."""
+    if not cfg.model or cfg.model.provider != "ollama":
+        return True
+    return _ollama_pull(cfg.model.hf_id, "LLM model")
 
 
 def init_beaver() -> str | None:
@@ -252,6 +261,10 @@ def run_setup(cfg: InstallConfig) -> bool:
     if not pull_embedding_model(cfg):
         warn("Embedding model pull failed. You can retry manually:")
         info(f"  docker compose -f {COMPOSE_FILE} exec ollama ollama pull {cfg.embedding.ollama_model if cfg.embedding else ''}")
+
+    if not pull_llm_model(cfg):
+        warn("LLM model pull failed. You can retry manually:")
+        info(f"  docker compose -f {COMPOSE_FILE} exec ollama ollama pull {cfg.model.hf_id if cfg.model else ''}")
 
     api_key = init_beaver()
     if not api_key:

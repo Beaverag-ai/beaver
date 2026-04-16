@@ -8,9 +8,10 @@ from dataclasses import dataclass, field
 @dataclass
 class Model:
     name: str
-    hf_id: str
+    hf_id: str  # HF repo id for SGLang, or Ollama tag for Ollama
     description: str
     default: bool = False
+    provider: str = "sglang"  # "sglang" or "ollama"
 
 
 @dataclass
@@ -70,6 +71,40 @@ MODELS = [
         name="deepseek-ai/DeepSeek-R1-0528",
         hf_id="deepseek-ai/DeepSeek-R1-0528",
         description="DeepSeek R1 — strong reasoning model",
+    ),
+]
+
+OLLAMA_LLM_MODELS = [
+    Model(
+        name="qwen3:32b",
+        hf_id="qwen3:32b",
+        description="Qwen 3 32B — strong general-purpose model",
+        default=True,
+        provider="ollama",
+    ),
+    Model(
+        name="qwen3:8b",
+        hf_id="qwen3:8b",
+        description="Qwen 3 8B — lighter Qwen, fits on smaller Macs",
+        provider="ollama",
+    ),
+    Model(
+        name="llama3.1:8b",
+        hf_id="llama3.1:8b",
+        description="Llama 3.1 8B — Meta's open model",
+        provider="ollama",
+    ),
+    Model(
+        name="mistral:7b",
+        hf_id="mistral:7b",
+        description="Mistral 7B — efficient instruction model",
+        provider="ollama",
+    ),
+    Model(
+        name="deepseek-r1:8b",
+        hf_id="deepseek-r1:8b",
+        description="DeepSeek R1 8B — reasoning-tuned distill",
+        provider="ollama",
     ),
 ]
 
