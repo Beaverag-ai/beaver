@@ -1,6 +1,8 @@
 # Beaver
 
-Self-hosted RAG platform with an OpenAI-compatible API. Drop in your documents, connect MCP servers, and query everything through a familiar chat interface.
+Your own self-hosted **agentic AI stack**, in one box. Beaver bundles an LLM server, embeddings, a vector store, document ingestion, and Model Context Protocol (MCP) tool integrations behind a single OpenAI-compatible API — so you can chat with your private documents, drive real tools (Telegram, Slack, Gmail, GitHub, the filesystem), and run everything on your own hardware. No data leaves the machine unless you tell it to.
+
+The goal is simple: **everything you'd get from a hosted assistant, but local, swappable, and yours.** Pick the LLM, pick the embeddings, pick the tools — the installer wires it together and the CLI lets you use it from the terminal.
 
 ## Quick Start
 
@@ -24,30 +26,39 @@ beaver install
 
 The installer walks you through choosing your stack:
 
-1. **LLM Model** — served via SGLang, loaded from HuggingFace
-2. **MCP Integrations** — Telegram, Slack, Gmail, GitHub, Filesystem
+1. **LLM Model** — served via SGLang (Linux + NVIDIA GPU) or Ollama (macOS / no GPU)
+2. **MCP Integrations** — Telegram Bot, Telegram MCP, Slack, Gmail, GitHub, Filesystem
 3. **Vector Storage** — pgvector (built into PostgreSQL)
 4. **Embedding Model** — served via Ollama
 
 It generates a `docker-compose.install.yml`, starts all services, pulls models, creates an admin user, and registers your MCP servers — all automatically.
 
+### LLM backend: SGLang vs Ollama
+
+Beaver picks the LLM backend based on your platform:
+
+| Platform | Backend | Where the model comes from |
+|---|---|---|
+| Linux + NVIDIA GPU | **SGLang** | HuggingFace repo ID (e.g. `Qwen/Qwen2.5-7B-Instruct`) |
+| macOS / no GPU | **Ollama** | Ollama model alias (e.g. `qwen3:32b`) |
+
+> **macOS note:** SGLang requires an NVIDIA GPU, so on a Mac the installer routes the LLM through Ollama. **The model you select must be a valid Ollama model alias from the [Ollama library](https://ollama.com/library)** — for example `qwen3:32b`, `qwen3:8b`, `llama3.1:8b`, `mistral:7b`, `deepseek-r1:8b`. HuggingFace repo IDs (`org/model`) are not valid Ollama tags and won't pull. If you choose "Custom" in the installer on macOS, enter an Ollama tag, not an HF ID.
+
 ### Option B: Manual Setup
 
 ```bash
-# Clone and setup
-cp .env.example .env
-# Edit .env with your settings (especially PERPLEXITY_API_KEY for web search)
-
-# Start everything
+# Start the base stack (postgres + ollama + api + worker)
 docker compose up -d
 
-# Wait for postgres to be ready, then init admin
+# Wait for postgres to be ready, then init the admin user
 docker compose exec api python -m beaver.main init
 
 # Save the API key it prints out!
 ```
 
-That's it. API is running at `http://localhost:8741`.
+That's it. The API is running at `http://localhost:8741`.
+
+For a richer setup (LLM server, Telegram, custom embeddings), use `beaver install` instead — the manual flow is intentionally minimal.
 
 ## CLI Commands
 
@@ -120,36 +131,44 @@ curl http://localhost:8741/v1/chat/completions \
 ## Architecture
 
 ```
-                        ┌──────────────────┐
-                        │   beaver CLI     │
-                        │ chat/upload/mcp  │
-                        └────────┬─────────┘
-                                 │
-┌────────────────────────────────▼────────────────────────────┐
-│                    Beaver API (FastAPI)                      │
-│                      localhost:8741                          │
-├─────────────────────────────────────────────────────────────┤
-│  /v1/chat/completions   │  /v1/embeddings  │  /v1/models    │
-│  /v1/knowledge/*        │  /v1/functions/* │  /v1/auth/*    │
-│  /v1/mcp/servers/*      │  /metrics/*      │                │
-└───────┬─────────────────┴────────┬─────────┴───────┬────────┘
-        │                          │                 │
-┌───────▼────────┐   ┌────────────▼──────┐
-│     SGLang     │   │      Ollama       │
-│ (LLM from HF) │   │   (embeddings)    │
-│  :30091        │   │    :11491         │
-└────────────────┘   └──────────────────┘
+                ┌──────────────┐    ┌──────────────┐
+                │  beaver CLI  │    │ Telegram Bot │
+                └──────┬───────┘    └──────┬───────┘
+                       │                   │
+        ┌──────────────▼───────────────────▼──────────────┐
+        │              Beaver API (FastAPI)               │
+        │                localhost:8741                   │
+        │  /v1/chat/completions  /v1/embeddings           │
+        │  /v1/knowledge/*       /v1/functions/*          │
+        │  /v1/mcp/*             /v1/auth/*  /metrics/*   │
+        └───┬────────────┬───────────┬────────────┬───────┘
+            │            │           │            │
+   ┌────────▼─────┐ ┌────▼─────┐ ┌───▼────┐ ┌─────▼──────┐
+   │   SGLang     │ │  Ollama  │ │Postgres│ │ MCP servers│
+   │ (Linux+GPU)  │ │ (LLM on  │ │   +    │ │ (Telegram, │
+   │ HF model     │ │  macOS,  │ │pgvector│ │  Slack,    │
+   │              │ │ embeds)  │ │        │ │  Gmail...) │
+   └──────────────┘ └──────────┘ └────────┘ └────────────┘
+                                      ▲
+                              ┌───────┴────────┐
+                              │ Beaver Worker  │
+                              │ (doc indexing) │
+                              └────────────────┘
+```
 
 ## Configuration
 
-All config is via environment variables. See `.env.example` for the full list.
+All config is via environment variables. The installer writes `.env.install` for you; for manual setups, set these directly.
 
 Key ones:
-- `DATABASE_URL` - Postgres connection string
-- `SGLANG_URL` - Your LLM server (OpenAI-compatible)
-- `OLLAMA_URL` - Ollama for embeddings
-- `PERPLEXITY_API_KEY` - For web search function
-- `VECTOR_COLLECTION` - pgvector collection name (default: beaver_knowledge)
+- `DATABASE_URL` — Postgres connection string
+- `SGLANG_URL` — LLM backend URL (points at SGLang on Linux, Ollama on macOS)
+- `OLLAMA_URL` — Ollama URL for embeddings (and for the LLM on macOS)
+- `DEFAULT_MODEL` — Model identifier (HF repo ID for SGLang, Ollama alias for Ollama)
+- `EMBEDDING_MODEL` — Ollama embedding model alias (e.g. `nomic-embed-text`)
+- `EMBEDDING_DIM` — Embedding vector dimension
+- `VECTOR_COLLECTION` — pgvector collection name (default: `beaver_knowledge`)
+- `PERPLEXITY_API_KEY` — Optional, for the built-in `web_search` function
 
 ## API Endpoints
 
@@ -184,9 +203,9 @@ POST /v1/knowledge/query
 ### Functions
 
 Built-in functions:
-- `search_knowledge` - Search your docs
-- `web_search` - Perplexity-powered web search
-- `summarize` - Summarize text
+- `search_knowledge` — Search your docs
+- `web_search` — Perplexity-powered web search
+- `summarize` — Summarize text
 
 ```bash
 # List available functions
@@ -236,13 +255,17 @@ POST /v1/mcp/tools/read_file/call
 {"arguments": {"path": "/some/file.txt"}}
 ```
 
+#### Telegram Bot
+
+The lightweight option: pick **Telegram Bot** in the installer and provide a `TELEGRAM_BOT_TOKEN` (from [@BotFather](https://t.me/BotFather)). Beaver runs a small bot container that lets users chat with the assistant and upload files via Telegram.
+
 #### Telegram MCP
 
-The installer can set up [telegram-mcp](https://github.com/chigwell/telegram-mcp) in a separate Docker container with an SSE bridge. It provides 70+ tools for Telegram including messaging, chat management, contacts, media, and search.
+The full option: pick **Telegram MCP** to expose your own Telegram account as 70+ tools (send messages, manage chats, search, contacts, media). Beaver runs [telegram-mcp](https://github.com/chigwell/telegram-mcp) in a separate container with an SSE bridge.
 
 **Prerequisites:**
-1. Get your `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` from [my.telegram.org/apps](https://my.telegram.org/apps)
-2. Generate a session string by running the `session_string_generator.py` from the telegram-mcp repo
+1. Get your `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` from [my.telegram.org/apps](https://my.telegram.org/apps).
+2. Generate a session string by running `python3 generate_tg_session.py` from the repo root.
 
 The installer will prompt for these credentials during setup.
 
@@ -310,8 +333,10 @@ beaver/
 docker/
 ├── api.Dockerfile
 ├── worker.Dockerfile
-├── telegram-mcp.Dockerfile      # Telegram MCP container
-└── telegram-mcp-bridge.py       # SSE bridge for stdio MCP
+├── telegram-bot.Dockerfile         # Telegram bot container
+├── telegram-bot.py                 # Bot implementation
+├── telegram-mcp.Dockerfile         # Telegram MCP container
+└── telegram-mcp-bridge.py          # SSE bridge for stdio MCP
 ```
 
 ### Installer-Generated Files
@@ -322,6 +347,7 @@ When you run `beaver install`, the following files are created:
 |------|---------|
 | `docker-compose.install.yml` | Docker Compose with all selected services |
 | `.env.install` | Environment variables for local development |
+| `.env` | Runtime values (e.g. `BEAVER_API_KEY`) consumed by docker-compose |
 | `~/.beaver/config.json` | CLI client configuration (API URL, API key, model) |
 
 ### Extending
@@ -354,16 +380,17 @@ Same pattern works for `EmbeddingsProvider` and `VectorStore`.
 
 ## Docker Services
 
-The full installation includes the following containers:
+A full installation includes the following containers (some are optional based on installer choices):
 
 | Service | Image | Port | Purpose |
 |---------|-------|------|---------|
 | **api** | Custom (Dockerfile) | 8741 | Beaver API server |
 | **worker** | Custom (Dockerfile) | — | Background document indexing |
 | **postgres** | pgvector/pgvector:pg17 | 5491 | Metadata + vector storage (pgvector) |
-| **ollama** | ollama/ollama:latest | 11491 | Embedding model server |
-| **sglang** | lmsysorg/sglang:latest | 30091 | LLM inference (GPU required) |
-| **telegram-mcp** | Custom (Dockerfile) | 3001 | Telegram MCP with SSE bridge |
+| **ollama** | ollama/ollama:latest | 11491 | Embeddings (and LLM on macOS) |
+| **sglang** | lmsysorg/sglang:latest | 30091 | LLM inference (Linux + NVIDIA GPU only) |
+| **telegram-bot** | Custom (Dockerfile) | — | Telegram bot frontend (optional) |
+| **telegram-mcp** | Custom (Dockerfile) | 3001 | Telegram-as-tools MCP with SSE bridge (optional) |
 
 ### Managing Services
 
